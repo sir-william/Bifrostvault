@@ -1,0 +1,9 @@
+{
+  "query": "DROP TABLE IF EXISTS vault_entries; DROP TABLE IF EXISTS webauthn_credentials;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway02.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 2pDSt8yGvnrCmKV.root --database eGbUFo9vvx3hpzSEEYBTha --execute DROP TABLE IF EXISTS vault_entries; DROP TABLE IF EXISTS webauthn_credentials;",
+  "rows": [],
+  "messages": [],
+  "stdout": "",
+  "stderr": "",
+  "execution_time_ms": 764
+}

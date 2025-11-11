@@ -1,0 +1,1 @@
+ALTER TABLE `webauthn_credentials` MODIFY COLUMN `credentialId` varchar(512) NOT NULL;
