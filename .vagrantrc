@@ -1,0 +1,4 @@
+# Force VMware as default provider
+# This file ensures Vagrant uses VMware instead of VirtualBox
+
+ENV['VAGRANT_DEFAULT_PROVIDER'] = 'vmware_desktop'

@@ -27,6 +27,11 @@ Vagrant.configure("2") do |config|
   config.vm.box = "bento/ubuntu-22.04"
   config.vm.box_version = ">= 202309.08.0"
   
+  # Set VMware as default provider
+  config.vm.provider "vmware_desktop"
+  config.vm.provider "vmware_fusion"
+  config.vm.provider "vmware_workstation"
+  
   # VM hostname
   config.vm.hostname = "bifrostvault-dev"
   
