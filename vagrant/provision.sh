@@ -282,9 +282,10 @@ EOF
     log_info "Configuring MySQL for remote access..."
     sudo sed -i 's/bind-address.*/bind-address = 0.0.0.0/' /etc/mysql/mysql.conf.d/mysqld.cnf
     
-    # Allow remote access for development
+    # Allow remote access for development (MySQL 8.0 syntax)
     sudo mysql -u root -p"${MYSQL_ROOT_PASSWORD}" <<EOF
-GRANT ALL PRIVILEGES ON ${MYSQL_DATABASE}.* TO '${MYSQL_USER}'@'%' IDENTIFIED BY '${MYSQL_PASSWORD}';
+CREATE USER IF NOT EXISTS '${MYSQL_USER}'@'%' IDENTIFIED BY '${MYSQL_PASSWORD}';
+GRANT ALL PRIVILEGES ON ${MYSQL_DATABASE}.* TO '${MYSQL_USER}'@'%';
 FLUSH PRIVILEGES;
 EOF
     
