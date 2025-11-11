@@ -1,0 +1,154 @@
+# -*- mode: ruby -*-
+# vi: set ft=ruby :
+
+################################################################################
+# Bifrostvault Vagrant Configuration for KVM/libvirt
+# 
+# This Vagrantfile creates a fully configured Ubuntu VM with:
+# - Automated Bifrostvault installation
+# - USB passthrough for YubiKey detection (KVM/libvirt)
+# - All dependencies pre-installed
+# - Ready-to-use development environment
+#
+# Requirements:
+# - Vagrant 2.3+
+# - KVM/QEMU
+# - libvirt
+# - vagrant-libvirt plugin
+#
+# Usage:
+#   vagrant up --provider=libvirt    # Create and provision VM
+#   vagrant ssh                      # SSH into VM
+#   vagrant halt                     # Stop VM
+#   vagrant destroy                  # Delete VM
+################################################################################
+
+Vagrant.configure("2") do |config|
+  # Base box - Ubuntu 22.04 LTS (libvirt-compatible)
+  config.vm.box = "generic/ubuntu2204"
+  config.vm.box_version = ">= 4.3.0"
+  
+  # VM hostname
+  config.vm.hostname = "bifrostvault-dev"
+  
+  # Disable default synced folder (we'll use NFS or rsync)
+  config.vm.synced_folder ".", "/vagrant", disabled: true
+  
+  # libvirt-specific configuration
+  config.vm.provider :libvirt do |libvirt|
+    # VM resources
+    libvirt.memory = 4096              # 4GB RAM
+    libvirt.cpus = 2                   # 2 CPU cores
+    
+    # Graphics and display
+    libvirt.graphics_type = "spice"
+    libvirt.video_type = "qxl"
+    libvirt.channel :type => 'spicevmc', :target_name => 'com.redhat.spice.0', :target_type => 'virtio'
+    
+    # USB controller configuration
+    libvirt.usb_controller :model => "qemu-xhci"
+    
+    # USB passthrough for YubiKey
+    # Yubico vendor ID: 0x1050
+    # This will pass through ALL Yubico devices
+    libvirt.usb :vendor => "0x1050", :product => "0x0407", :startupPolicy => "optional"  # YubiKey 5 NFC
+    libvirt.usb :vendor => "0x1050", :product => "0x0405", :startupPolicy => "optional"  # YubiKey 5 NFC
+    libvirt.usb :vendor => "0x1050", :product => "0x0406", :startupPolicy => "optional"  # YubiKey 5C
+    libvirt.usb :vendor => "0x1050", :product => "0x0408", :startupPolicy => "optional"  # YubiKey 5C NFC
+    libvirt.usb :vendor => "0x1050", :product => "0x0402", :startupPolicy => "optional"  # YubiKey Bio
+    libvirt.usb :vendor => "0x1050", :product => "0x0120", :startupPolicy => "optional"  # Security Key
+    
+    # Storage
+    libvirt.storage :file, :size => '25G', :type => 'qcow2'
+    
+    # Network configuration
+    libvirt.management_network_name = "vagrant-libvirt"
+    libvirt.management_network_address = "192.168.121.0/24"
+    
+    # Nested virtualization (if needed)
+    libvirt.nested = true
+    libvirt.cpu_mode = "host-passthrough"
+    
+    # Random number generator (for better entropy)
+    libvirt.random :model => 'random'
+    
+    # Driver settings
+    libvirt.driver = "kvm"
+    libvirt.connect_via_ssh = false
+    libvirt.username = ENV['USER']
+    libvirt.storage_pool_name = "default"
+  end
+  
+  # Network configuration
+  # Private network for accessing the app from host
+  config.vm.network "private_network", 
+    ip: "192.168.121.10",
+    libvirt__network_name: "bifrostvault",
+    libvirt__dhcp_enabled: false
+  
+  # Port forwarding for web access
+  config.vm.network "forwarded_port", guest: 3000, host: 3000, host_ip: "127.0.0.1"
+  config.vm.network "forwarded_port", guest: 3306, host: 3306, host_ip: "127.0.0.1"
+  
+  # Synced folder configuration
+  # Option 1: NFS (recommended for Linux hosts)
+  config.vm.synced_folder ".", "/vagrant",
+    type: "nfs",
+    nfs_version: 4,
+    nfs_udp: false,
+    mount_options: ['rw', 'vers=4', 'tcp', 'nolock']
+  
+  # Option 2: rsync (if NFS doesn't work)
+  # config.vm.synced_folder ".", "/vagrant",
+  #   type: "rsync",
+  #   rsync__exclude: [".git/", "node_modules/", "dist/", ".vagrant/"],
+  #   rsync__auto: true
+  
+  # Option 3: 9p (virtio-9p, slower but works everywhere)
+  # config.vm.synced_folder ".", "/vagrant",
+  #   type: "9p",
+  #   disabled: false,
+  #   accessmode: "mapped",
+  #   mount: true
+  
+  # Provisioning script
+  config.vm.provision "shell", path: "vagrant/provision.sh", privileged: false
+  
+  # Post-provisioning message
+  config.vm.post_up_message = <<-MESSAGE
+  ╔════════════════════════════════════════════════════════════════╗
+  ║                                                                ║
+  ║          BIFROSTVAULT DEVELOPMENT VM READY! (KVM)              ║
+  ║                                                                ║
+  ╚════════════════════════════════════════════════════════════════╝
+  
+  VM is ready for Bifrostvault development with YubiKey support!
+  
+  Access the application:
+    - URL: http://localhost:3000 (from host)
+    - URL: http://192.168.121.10:3000 (from host)
+  
+  SSH into the VM:
+    vagrant ssh
+  
+  Inside the VM:
+    cd /vagrant
+    pnpm dev              # Start development server
+    pnpm test:e2e         # Run E2E tests
+    pnpm db:push          # Initialize database
+  
+  YubiKey Detection:
+    - Insert YubiKey into host machine
+    - It will auto-connect to VM via USB passthrough
+    - Check with: lsusb | grep -i yubico
+  
+  Useful commands:
+    vagrant halt          # Stop VM
+    vagrant up            # Start VM
+    vagrant reload        # Restart VM
+    vagrant destroy       # Delete VM
+  
+  For detailed documentation, see:
+    docs/developer/VAGRANT_KVM_TESTING.md
+  MESSAGE
+end
