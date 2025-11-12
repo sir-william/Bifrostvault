@@ -1,0 +1,58 @@
+version: '3.8'
+
+services:
+  # MySQL Database
+  db:
+    image: mysql:8.0
+    container_name: bifrostvault-db
+    restart: unless-stopped
+    environment:
+      MYSQL_ROOT_PASSWORD: rootpass
+      MYSQL_DATABASE: bifrostvault
+      MYSQL_USER: bifrost
+      MYSQL_PASSWORD: vaultpass
+    ports:
+      - "3306:3306"
+    volumes:
+      - mysql_data:/var/lib/mysql
+    networks:
+      - bifrostvault-network
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
+      timeout: 20s
+      retries: 10
+
+  # Application (Development Mode)
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile.dev
+    container_name: bifrostvault-app
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: mysql://bifrost:vaultpass@db:3306/bifrostvault
+      WEBAUTHN_RP_ID: localhost
+      WEBAUTHN_ORIGIN: http://localhost:3000
+      NODE_ENV: development
+      PORT: 3000
+    ports:
+      - "3000:3000"
+    volumes:
+      - .:/app
+      - /app/node_modules
+    networks:
+      - bifrostvault-network
+    # Note: USB passthrough for YubiKey is not supported in Docker
+    # Use native development for YubiKey testing
+    # This setup is for backend/database testing only
+
+networks:
+  bifrostvault-network:
+    driver: bridge
+
+volumes:
+  mysql_data:
+    driver: local

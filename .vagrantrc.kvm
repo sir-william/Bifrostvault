@@ -1,0 +1,4 @@
+# Force KVM/libvirt as default provider
+# This file ensures Vagrant uses KVM/libvirt instead of VirtualBox or VMware
+
+ENV['VAGRANT_DEFAULT_PROVIDER'] = 'libvirt'
