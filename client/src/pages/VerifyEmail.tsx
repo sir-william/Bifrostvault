@@ -1,28 +1,29 @@
 import { useState, useEffect } from 'react';
-import { useNavigate, useSearchParams } from 'react-router-dom';
+import { useLocation } from 'wouter';
 import { trpc } from '../lib/trpc';
 
 export default function VerifyEmail() {
-  const navigate = useNavigate();
-  const [searchParams] = useSearchParams();
+  const [, setLocation] = useLocation();
   const [email, setEmail] = useState('');
   const [resending, setResending] = useState(false);
   const [message, setMessage] = useState('');
   const [error, setError] = useState('');
 
   useEffect(() => {
-    // Try to get email from query params or localStorage
-    const emailParam = searchParams.get('email');
+    // Try to get email from localStorage
+    const storedEmail = localStorage.getItem('pendingVerificationEmail');
+    if (storedEmail) {
+      setEmail(storedEmail);
+    }
+    
+    // Also check URL params
+    const params = new URLSearchParams(window.location.search);
+    const emailParam = params.get('email');
     if (emailParam) {
       setEmail(emailParam);
       localStorage.setItem('pendingVerificationEmail', emailParam);
-    } else {
-      const storedEmail = localStorage.getItem('pendingVerificationEmail');
-      if (storedEmail) {
-        setEmail(storedEmail);
-      }
     }
-  }, [searchParams]);
+  }, []);
 
   const handleResend = async () => {
     if (!email) {
@@ -48,7 +49,7 @@ export default function VerifyEmail() {
       } else {
         if (data.alreadyVerified) {
           setMessage('Your email is already verified! Redirecting...');
-          setTimeout(() => navigate('/vault'), 2000);
+          setTimeout(() => setLocation('/vault'), 2000);
         } else {
           setError(data.error || 'Failed to resend verification email');
         }
@@ -64,7 +65,7 @@ export default function VerifyEmail() {
     localStorage.removeItem('pendingVerificationEmail');
     // Log out and redirect to register
     document.cookie = 'session=; path=/; expires=Thu, 01 Jan 1970 00:00:01 GMT;';
-    navigate('/register');
+    setLocation('/register');
   };
 
   return (

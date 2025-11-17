@@ -1,15 +1,16 @@
 import { useEffect, useState } from 'react';
-import { useNavigate, useSearchParams } from 'react-router-dom';
+import { useLocation } from 'wouter';
 
 export default function EmailVerified() {
-  const navigate = useNavigate();
-  const [searchParams] = useSearchParams();
+  const [, setLocation] = useLocation();
   const [status, setStatus] = useState<'verifying' | 'success' | 'error'>('verifying');
   const [message, setMessage] = useState('');
   const [countdown, setCountdown] = useState(3);
 
   useEffect(() => {
-    const token = searchParams.get('token');
+    // Get token from URL params
+    const params = new URLSearchParams(window.location.search);
+    const token = params.get('token');
     
     if (!token) {
       setStatus('error');
@@ -33,7 +34,7 @@ export default function EmailVerified() {
             setCountdown(prev => {
               if (prev <= 1) {
                 clearInterval(timer);
-                navigate('/vault');
+                setLocation('/vault');
                 return 0;
               }
               return prev - 1;
@@ -45,7 +46,7 @@ export default function EmailVerified() {
           setStatus('error');
           if (data.alreadyVerified) {
             setMessage('Your email is already verified!');
-            setTimeout(() => navigate('/vault'), 2000);
+            setTimeout(() => setLocation('/vault'), 2000);
           } else {
             setMessage(data.error || 'Verification failed');
           }
@@ -55,7 +56,7 @@ export default function EmailVerified() {
         setStatus('error');
         setMessage('Network error. Please try again.');
       });
-  }, [searchParams, navigate]);
+  }, [setLocation]);
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-900 via-purple-900 to-violet-900 flex items-center justify-center p-4">
@@ -89,7 +90,7 @@ export default function EmailVerified() {
             </div>
 
             <button
-              onClick={() => navigate('/vault')}
+              onClick={() => setLocation('/vault')}
               className="w-full py-3 px-4 bg-gradient-to-r from-purple-600 to-violet-600 hover:from-purple-700 hover:to-violet-700 text-white font-semibold rounded-lg transition-all duration-200 flex items-center justify-center"
             >
               Continue to Vault
@@ -112,14 +113,14 @@ export default function EmailVerified() {
             
             <div className="space-y-3">
               <button
-                onClick={() => navigate('/verify-email')}
+                onClick={() => setLocation('/verify-email')}
                 className="w-full py-3 px-4 bg-purple-600 hover:bg-purple-700 text-white font-semibold rounded-lg transition-colors duration-200"
               >
                 Resend Verification Email
               </button>
               
               <button
-                onClick={() => navigate('/')}
+                onClick={() => setLocation('/')}
                 className="w-full py-3 px-4 bg-gray-700 hover:bg-gray-600 text-white font-semibold rounded-lg transition-colors duration-200"
               >
                 Back to Home
