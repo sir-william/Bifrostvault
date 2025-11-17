@@ -1,10 +1,10 @@
 import crypto from 'crypto';
 
 // Email service configuration
-const SMTP_ENABLED = process.env.SMTP_HOST && process.env.SMTP_USER && process.env.SMTP_PASS;
+const BREVO_API_KEY = process.env.BREVO_API_KEY;
 const APP_URL = process.env.APP_URL || 'http://localhost:3000';
-const FROM_EMAIL = process.env.SMTP_FROM || 'noreply@bifrostvault.com';
-const FROM_NAME = process.env.SMTP_FROM_NAME || 'Bifrostvault';
+const FROM_EMAIL = process.env.FROM_EMAIL || 'noreply@bifrostvault.com';
+const FROM_NAME = process.env.FROM_NAME || 'Bifrostvault';
 
 /**
  * Generate a cryptographically secure verification token
@@ -31,16 +31,16 @@ export function isTokenExpired(expiry: Date | null): boolean {
 }
 
 /**
- * Send verification email
+ * Send verification email using Brevo
  * In development: logs to console
- * In production: sends via SMTP (if configured)
+ * In production: sends via Brevo API
  */
 export async function sendVerificationEmail(
   email: string,
   token: string,
   name?: string | null
 ): Promise<void> {
-  const verificationUrl = `${APP_URL}/verify-email?token=${token}`;
+  const verificationUrl = `${APP_URL}/email-verified?token=${token}`;
   const displayName = name || 'there';
 
   const emailContent = {
@@ -101,11 +101,12 @@ Bifrostvault Team
     `.trim(),
   };
 
-  // In development or when SMTP is not configured, log to console
-  if (!SMTP_ENABLED || process.env.NODE_ENV === 'development') {
+  // In development or when Brevo is not configured, log to console
+  if (!BREVO_API_KEY || process.env.NODE_ENV === 'development') {
     console.log('[Email] Verification email (development mode):');
     console.log('━'.repeat(80));
     console.log(`To: ${emailContent.to}`);
+    console.log(`From: ${emailContent.from}`);
     console.log(`Subject: ${emailContent.subject}`);
     console.log('');
     console.log(emailContent.text);
@@ -114,24 +115,36 @@ Bifrostvault Team
     return;
   }
 
-  // In production with SMTP configured, send actual email
+  // In production with Brevo API key, send actual email
   try {
-    const nodemailer = await import('nodemailer');
+    const brevo = await import('@getbrevo/brevo');
     
-    const transporter = nodemailer.default.createTransport({
-      host: process.env.SMTP_HOST,
-      port: parseInt(process.env.SMTP_PORT || '587'),
-      secure: process.env.SMTP_PORT === '465',
-      auth: {
-        user: process.env.SMTP_USER,
-        pass: process.env.SMTP_PASS,
-      },
-    });
+    // Initialize Brevo API client
+    const apiInstance = new brevo.TransactionalEmailsApi();
+    apiInstance.setApiKey(
+      brevo.TransactionalEmailsApiApiKeys.apiKey,
+      BREVO_API_KEY
+    );
 
-    await transporter.sendMail(emailContent);
-    console.log(`[Email] Verification email sent to ${email}`);
-  } catch (error) {
-    console.error('[Email] Failed to send verification email:', error);
+    // Prepare email data
+    const sendSmtpEmail = new brevo.SendSmtpEmail();
+    sendSmtpEmail.sender = { name: FROM_NAME, email: FROM_EMAIL };
+    sendSmtpEmail.to = [{ email: email, name: displayName }];
+    sendSmtpEmail.subject = emailContent.subject;
+    sendSmtpEmail.htmlContent = emailContent.html;
+    sendSmtpEmail.textContent = emailContent.text;
+
+    // Send email via Brevo
+    await apiInstance.sendTransacEmail(sendSmtpEmail);
+    console.log(`[Email] Verification email sent to ${email} via Brevo`);
+  } catch (error: any) {
+    console.error('[Email] Failed to send verification email via Brevo:', error);
+    
+    // Log more details about the error
+    if (error.response) {
+      console.error('[Email] Brevo API error:', error.response.body);
+    }
+    
     // Fallback to console logging if email fails
     console.log('[Email] Verification URL (fallback):', verificationUrl);
     throw new Error('Failed to send verification email');
