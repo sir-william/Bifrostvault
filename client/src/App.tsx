@@ -7,11 +7,15 @@ import { ThemeProvider } from "./contexts/ThemeContext";
 import Home from "./pages/Home";
 import Vault from "./pages/Vault";
 import SetupYubiKey from "./pages/SetupYubiKey";
+import Register from "./pages/Register";
+import Login from "./pages/Login";
 
 function Router() {
   return (
     <Switch>
       <Route path={"/"} component={Home} />
+      <Route path={"/register"} component={Register} />
+      <Route path={"/login"} component={Login} />
       <Route path={"/vault"} component={Vault} />
       <Route path={"/setup-yubikey"} component={SetupYubiKey} />
       <Route path={"/404"} component={NotFound} />

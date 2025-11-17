@@ -33,7 +33,7 @@ export default function Home() {
             <KeyRound className="h-8 w-8 text-primary" />
             <h1 className="text-2xl font-bold text-foreground">{APP_TITLE}</h1>
           </div>
-          <Button onClick={() => window.location.href = getLoginUrl()}>
+          <Button onClick={() => setLocation("/login")}>
             Sign In
           </Button>
         </div>
@@ -52,7 +52,7 @@ export default function Home() {
             Zero-knowledge encryption meets hardware security. Your passwords are encrypted in your browser and protected by your YubiKey.
           </p>
           <div className="flex gap-4 justify-center">
-            <Button size="lg" onClick={() => window.location.href = getLoginUrl()}>
+            <Button size="lg" onClick={() => setLocation("/register")}>
               Get Started
             </Button>
             <Button size="lg" variant="outline">
