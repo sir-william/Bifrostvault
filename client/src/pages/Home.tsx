@@ -1,5 +1,6 @@
 import { useAuth } from "@/_core/hooks/useAuth";
 import { Button } from "@/components/ui/button";
+import { GoogleSignInButton } from "@/components/GoogleSignInButton";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { APP_LOGO, APP_TITLE, getLoginUrl } from "@/const";
 import { KeyRound, Lock, Shield, Fingerprint } from "lucide-react";
@@ -51,12 +52,15 @@ export default function Home() {
           <p className="text-xl text-muted-foreground mb-8 max-w-2xl mx-auto">
             Zero-knowledge encryption meets hardware security. Your passwords are encrypted in your browser and protected by your YubiKey.
           </p>
-          <div className="flex gap-4 justify-center">
-            <Button size="lg" onClick={() => setLocation("/register")}>
-              Get Started
-            </Button>
-            <Button size="lg" variant="outline">
-              Learn More
+          <div className="flex flex-col gap-4 justify-center items-center max-w-md mx-auto">
+            <GoogleSignInButton text="Sign in with Google" className="text-lg py-6" />
+            <div className="flex items-center gap-4 w-full">
+              <div className="flex-1 border-t border-border"></div>
+              <span className="text-sm text-muted-foreground">or</span>
+              <div className="flex-1 border-t border-border"></div>
+            </div>
+            <Button size="lg" onClick={() => setLocation("/register")} className="w-full">
+              Register with YubiKey
             </Button>
           </div>
         </div>
