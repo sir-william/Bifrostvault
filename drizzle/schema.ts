@@ -26,6 +26,12 @@ export const users = mysqlTable("users", {
   passwordSalt: varchar("passwordSalt", { length: 255 }),
   /** Encrypted vault key (encrypted with master password) */
   encryptedVaultKey: text("encryptedVaultKey"),
+  /** Email verification status */
+  emailVerified: boolean("emailVerified").default(false).notNull(),
+  /** Email verification token */
+  verificationToken: varchar("verificationToken", { length: 255 }),
+  /** Email verification token expiry */
+  verificationTokenExpiry: timestamp("verificationTokenExpiry"),
 });
 
 export type User = typeof users.$inferSelect;

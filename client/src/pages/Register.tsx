@@ -88,8 +88,16 @@ export default function Register() {
         throw new Error(errorData.error || "Failed to complete registration");
       }
 
-      // Registration successful, redirect to vault
-      setLocation("/vault");
+      // Registration successful, redirect to email verification
+      const data = await completeResponse.json();
+      
+      // Store email for verification page
+      if (data.user?.email) {
+        localStorage.setItem('pendingVerificationEmail', data.user.email);
+      }
+      
+      // Redirect to verification page
+      setLocation(`/verify-email?email=${encodeURIComponent(email)}`);
     } catch (err: any) {
       console.error("Registration failed:", err);
       if (err.name === "NotAllowedError") {

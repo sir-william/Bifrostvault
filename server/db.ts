@@ -232,3 +232,39 @@ export async function getUserByEmail(email: string) {
   const result = await db.select().from(users).where(eq(users.email, email)).limit(1);
   return result.length > 0 ? result[0] : undefined;
 }
+
+// Get user by verification token
+export async function getUserByVerificationToken(token: string) {
+  const db = await getDb();
+  if (!db) return null;
+
+  const result = await db.select().from(users).where(eq(users.verificationToken, token)).limit(1);
+  return result[0] || null;
+}
+
+// Verify user email
+export async function verifyUserEmail(userId: number): Promise<void> {
+  const db = await getDb();
+  if (!db) return;
+
+  await db.update(users)
+    .set({ 
+      emailVerified: true,
+      verificationToken: null,
+      verificationTokenExpiry: null 
+    })
+    .where(eq(users.id, userId));
+}
+
+// Update verification token
+export async function updateVerificationToken(userId: number, token: string, expiry: Date): Promise<void> {
+  const db = await getDb();
+  if (!db) return;
+
+  await db.update(users)
+    .set({ 
+      verificationToken: token,
+      verificationTokenExpiry: expiry 
+    })
+    .where(eq(users.id, userId));
+}

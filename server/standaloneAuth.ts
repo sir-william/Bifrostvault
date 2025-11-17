@@ -1,9 +1,10 @@
-import { COOKIE_NAME, ONE_YEAR_MS } from "@shared/const";
+import { COOKIE_NAME, ONE_YEAR_MS } from "./_core/const";
 import type { Express, Request, Response } from "express";
 import * as db from "./db";
 import { getSessionCookieOptions } from "./_core/cookies";
 import { sdk } from "./_core/sdk";
 import * as webauthn from "./webauthn";
+import { generateVerificationToken, getTokenExpiry, sendVerificationEmail, isTokenExpired } from "./emailService";
 
 // Store challenges temporarily (in production, use Redis or similar)
 const challengeStore = new Map<string, { challenge: string, timestamp: number }>();
@@ -107,8 +108,11 @@ export function registerStandaloneAuthRoutes(app: Express) {
         challenge
       );
 
+      // Generate verification token
+      const verificationToken = generateVerificationToken();
+      const tokenExpiry = getTokenExpiry();
+
       // Create user with email as openId (to satisfy schema requirement)
-      // In a real implementation, you might want to modify the schema
       const openId = `email:${email}`; // Prefix to distinguish from OAuth openIds
 
       await db.upsertUser({
@@ -117,6 +121,9 @@ export function registerStandaloneAuthRoutes(app: Express) {
         email,
         loginMethod: "webauthn",
         lastSignedIn: new Date(),
+        emailVerified: false,
+        verificationToken,
+        verificationTokenExpiry: tokenExpiry,
       });
 
       // Get the created user to get the ID
@@ -140,7 +147,16 @@ export function registerStandaloneAuthRoutes(app: Express) {
         lastVerified: verification.userVerified ? new Date() : undefined,
       });
 
-      // Create session token
+      // Send verification email
+      try {
+        await sendVerificationEmail(email, verificationToken, name);
+        console.log(`[Auth] Verification email sent to ${email}`);
+      } catch (emailError) {
+        console.error("[Auth] Failed to send verification email:", emailError);
+        // Continue anyway - user can resend
+      }
+
+      // Create session token (but user still needs to verify email)
       const sessionToken = await sdk.createSessionToken(openId, {
         name: user.name || user.email || "",
         expiresInMs: ONE_YEAR_MS,
@@ -153,7 +169,12 @@ export function registerStandaloneAuthRoutes(app: Express) {
       // Clear challenge
       challengeStore.delete(`reg:${email}`);
 
-      res.json({ success: true, user: { id: user.id, email: user.email, name: user.name } });
+      res.json({ 
+        success: true, 
+        user: { id: user.id, email: user.email, name: user.name },
+        emailVerified: false,
+        message: "Registration successful. Please check your email to verify your account."
+      });
     } catch (error) {
       console.error("[Auth] Registration complete failed", error);
       res.status(500).json({ error: "Failed to complete registration" });
@@ -250,18 +271,15 @@ export function registerStandaloneAuthRoutes(app: Express) {
         return;
       }
 
-      // Update credential counter and verification status
-      await db.updateWebAuthnCredentialCounter(
-        credential.credentialId,
-        verification.newCounter,
-        verification.userVerified
-      );
-
-      // Update last signed in
-      await db.upsertUser({
-        ...user,
-        lastSignedIn: new Date(),
+      // Update credential counter and last used
+      await db.updateWebAuthnCredential(credential.id, {
+        counter: verification.counter,
+        lastUsed: new Date(),
+        lastVerified: verification.userVerified ? new Date() : undefined,
       });
+
+      // Update user last signed in
+      await db.updateUserLastSignedIn(user.id);
 
       // Create session token
       const sessionToken = await sdk.createSessionToken(user.openId, {
@@ -276,10 +294,110 @@ export function registerStandaloneAuthRoutes(app: Express) {
       // Clear challenge
       challengeStore.delete(`login:${email}`);
 
-      res.json({ success: true, user: { id: user.id, email: user.email, name: user.name } });
+      res.json({ 
+        success: true, 
+        user: { id: user.id, email: user.email, name: user.name },
+        emailVerified: user.emailVerified || false
+      });
     } catch (error) {
       console.error("[Auth] Login complete failed", error);
       res.status(500).json({ error: "Failed to complete login" });
+    }
+  });
+
+  // Verify email with token
+  app.get("/api/auth/verify-email", async (req: Request, res: Response) => {
+    const token = getQueryParam(req, "token");
+
+    if (!token) {
+      res.status(400).json({ error: "token is required" });
+      return;
+    }
+
+    try {
+      // Find user by verification token
+      const user = await db.getUserByVerificationToken(token);
+      
+      if (!user) {
+        res.status(400).json({ error: "Invalid verification token" });
+        return;
+      }
+
+      // Check if token has expired
+      if (isTokenExpired(user.verificationTokenExpiry)) {
+        res.status(400).json({ error: "Verification token has expired" });
+        return;
+      }
+
+      // Check if already verified
+      if (user.emailVerified) {
+        res.status(400).json({ error: "Email already verified", alreadyVerified: true });
+        return;
+      }
+
+      // Mark email as verified and clear token
+      await db.verifyUserEmail(user.id);
+
+      // Create session token
+      const openId = user.openId;
+      const sessionToken = await sdk.createSessionToken(openId, {
+        name: user.name || user.email || "",
+        expiresInMs: ONE_YEAR_MS,
+      });
+
+      // Set session cookie
+      const cookieOptions = getSessionCookieOptions(req);
+      res.cookie(COOKIE_NAME, sessionToken, { ...cookieOptions, maxAge: ONE_YEAR_MS });
+
+      res.json({ 
+        success: true, 
+        message: "Email verified successfully",
+        user: { id: user.id, email: user.email, name: user.name }
+      });
+    } catch (error) {
+      console.error("[Auth] Email verification failed", error);
+      res.status(500).json({ error: "Failed to verify email" });
+    }
+  });
+
+  // Resend verification email
+  app.post("/api/auth/resend-verification", async (req: Request, res: Response) => {
+    const { email } = req.body;
+
+    if (!email) {
+      res.status(400).json({ error: "email is required" });
+      return;
+    }
+
+    try {
+      // Get user by email
+      const user = await db.getUserByEmail(email);
+      
+      if (!user) {
+        res.status(400).json({ error: "Email not registered" });
+        return;
+      }
+
+      // Check if already verified
+      if (user.emailVerified) {
+        res.status(400).json({ error: "Email already verified", alreadyVerified: true });
+        return;
+      }
+
+      // Generate new verification token
+      const token = generateVerificationToken();
+      const expiry = getTokenExpiry();
+
+      // Update user with new token
+      await db.updateVerificationToken(user.id, token, expiry);
+
+      // Send verification email
+      await sendVerificationEmail(user.email!, token, user.name);
+
+      res.json({ success: true, message: "Verification email sent" });
+    } catch (error) {
+      console.error("[Auth] Resend verification failed", error);
+      res.status(500).json({ error: "Failed to resend verification email" });
     }
   });
 }

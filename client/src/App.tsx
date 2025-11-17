@@ -9,6 +9,8 @@ import Vault from "./pages/Vault";
 import SetupYubiKey from "./pages/SetupYubiKey";
 import Register from "./pages/Register";
 import Login from "./pages/Login";
+import VerifyEmail from "./pages/VerifyEmail";
+import EmailVerified from "./pages/EmailVerified";
 
 function Router() {
   return (
@@ -16,6 +18,8 @@ function Router() {
       <Route path={"/"} component={Home} />
       <Route path={"/register"} component={Register} />
       <Route path={"/login"} component={Login} />
+      <Route path={"/verify-email"} component={VerifyEmail} />
+      <Route path={"/email-verified"} component={EmailVerified} />
       <Route path={"/vault"} component={Vault} />
       <Route path={"/setup-yubikey"} component={SetupYubiKey} />
       <Route path={"/404"} component={NotFound} />
