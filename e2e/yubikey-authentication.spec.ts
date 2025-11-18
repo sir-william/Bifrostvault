@@ -140,7 +140,7 @@ test.describe('YubiKey Authentication', () => {
     await expect(page.locator('text=YubiKey registered successfully!')).toBeVisible({ timeout: 10000 });
     
     // Get initial timestamp
-    const initialTimestamp = await page.locator('text=/Added.*/'').textContent();
+    const initialTimestamp = await page.locator('text=/Added.*/').textContent();
     
     // Simulate authentication (in real app, this would happen during login)
     // For testing, we'll just verify the timestamp is shown
