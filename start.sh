@@ -12,22 +12,37 @@ wait_for_mysql() {
   while [ $attempt -le $max_attempts ]; do
     echo "Attempt $attempt/$max_attempts: Checking MySQL connection..."
     
-    # Try to run a simple drizzle-kit command to test connection
-    if drizzle-kit push 2>&1 | tee /tmp/drizzle_output.log; then
-      echo "✅ MySQL is ready! Migrations applied successfully."
-      return 0
-    fi
+    # Try to run drizzle-kit push and capture both output and exit code
+    set +e  # Temporarily disable exit on error
+    drizzle-kit push > /tmp/drizzle_output.log 2>&1
+    local exit_code=$?
+    set -e  # Re-enable exit on error
     
     # Check if the error is connection refused
     if grep -q "ECONNREFUSED\|ETIMEDOUT\|ENOTFOUND" /tmp/drizzle_output.log; then
-      echo "⚠️  MySQL not ready yet. Waiting 2 seconds before retry..."
+      echo "⚠️  MySQL not ready yet (connection error). Waiting 2 seconds before retry..."
       sleep 2
       attempt=$((attempt + 1))
-    else
-      # If it's a different error, fail immediately
-      echo "❌ Unexpected error occurred:"
+      continue
+    fi
+    
+    # If no connection error, check the exit code
+    if [ $exit_code -eq 0 ]; then
+      echo "✅ MySQL is ready! Migrations applied successfully."
       cat /tmp/drizzle_output.log
-      return 1
+      return 0
+    else
+      # Check if it's just "No schema changes" which is actually success
+      if grep -q "No schema changes" /tmp/drizzle_output.log; then
+        echo "✅ MySQL is ready! No schema changes needed."
+        cat /tmp/drizzle_output.log
+        return 0
+      else
+        # Unexpected error
+        echo "❌ Unexpected error occurred:"
+        cat /tmp/drizzle_output.log
+        return 1
+      fi
     fi
   done
   
