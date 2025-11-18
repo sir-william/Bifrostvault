@@ -14,7 +14,7 @@ wait_for_mysql() {
     
     # Try to run drizzle-kit push and capture both output and exit code
     set +e  # Temporarily disable exit on error
-    drizzle-kit push > /tmp/drizzle_output.log 2>&1
+    drizzle-kit migrate > /tmp/drizzle_output.log 2>&1
     local exit_code=$?
     set -e  # Re-enable exit on error
     
