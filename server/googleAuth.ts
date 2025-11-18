@@ -8,7 +8,7 @@
 import { OAuth2Client } from 'google-auth-library';
 import type { Express, Request, Response } from 'express';
 import * as db from './db';
-import { COOKIE_NAME, ONE_YEAR_MS } from '@shared/const';
+
 import { getSessionCookieOptions } from './_core/cookies';
 import { SignJWT } from 'jose';
 import { ENV } from './_core/env';
@@ -51,12 +51,12 @@ export function getGoogleAuthUrl(): string {
 /**
  * Create session token for user
  */
-async function createSessionToken(email: string, name: string): Promise<string> {
+async function createSessionToken(openId: string, name: string): Promise<string> {
   const secret = new TextEncoder().encode(ENV.cookieSecret);
   const issuedAt = Date.now();
   const expirationSeconds = Math.floor((issuedAt + ONE_YEAR_MS) / 1000);
 
-  return new SignJWT({
+      openId,
     email,
     name,
     appId: ENV.appId,
@@ -158,7 +158,7 @@ export function registerGoogleAuthRoutes(app: Express) {
       }
 
       // Create session token
-      const sessionToken = await createSessionToken(email, name || email);
+      const sessionToken = await createSessionToken(user.openId, name || email);
 
       // Set session cookie
       const cookieOptions = getSessionCookieOptions(req);
