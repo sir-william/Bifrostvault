@@ -8,7 +8,7 @@
 import { OAuth2Client } from 'google-auth-library';
 import type { Express, Request, Response } from 'express';
 import * as db from './db';
-
+import { COOKIE_NAME, ONE_YEAR_MS } from '@shared/const';
 import { getSessionCookieOptions } from './_core/cookies';
 import { SignJWT } from 'jose';
 import { ENV } from './_core/env';
@@ -56,8 +56,8 @@ async function createSessionToken(openId: string, name: string): Promise<string>
   const issuedAt = Date.now();
   const expirationSeconds = Math.floor((issuedAt + ONE_YEAR_MS) / 1000);
 
-      openId,
-    email,
+  return new SignJWT({
+    openId,
     name,
     appId: ENV.appId,
   })
