@@ -1,0 +1,188 @@
+# -*- mode: ruby -*-
+# vi: set ft=ruby :
+
+################################################################################
+# Bifrostvault Vagrant Configuration for VirtualBox
+# 
+# This Vagrantfile creates a fully configured Ubuntu VM with:
+# - Automated Bifrostvault installation
+# - USB passthrough for YubiKey detection (VirtualBox)
+# - All dependencies pre-installed
+# - Ready-to-use development environment
+#
+# Requirements:
+# - Vagrant 2.3+
+# - VirtualBox 6.1+
+# - VirtualBox Extension Pack (for USB 2.0/3.0 support)
+#
+# Usage:
+#   vagrant up                       # Create and provision VM
+#   vagrant ssh                      # SSH into VM
+#   vagrant halt                     # Stop VM
+#   vagrant destroy                  # Delete VM
+################################################################################
+
+Vagrant.configure("2") do |config|
+  # Base box - Ubuntu 22.04 LTS
+  config.vm.box = "ubuntu/jammy64"
+  config.vm.box_version = ">= 20230607.0.0"
+  
+  # VM hostname
+  config.vm.hostname = "bifrostvault-dev"
+  
+  # VirtualBox-specific configuration
+  config.vm.provider "virtualbox" do |vb|
+    # VM name
+    vb.name = "Bifrostvault-Dev"
+    
+    # VM resources
+    vb.memory = 4096              # 4GB RAM
+    vb.cpus = 2                   # 2 CPU cores
+    
+    # Enable GUI (optional - set to false for headless)
+    vb.gui = false
+    
+    # Graphics
+    vb.customize ["modifyvm", :id, "--graphicscontroller", "vmsvga"]
+    vb.customize ["modifyvm", :id, "--vram", "128"]
+    
+    # Enable 3D acceleration
+    vb.customize ["modifyvm", :id, "--accelerate3d", "on"]
+    
+    # USB Configuration
+    # Enable USB 2.0 (EHCI) controller
+    vb.customize ["modifyvm", :id, "--usbehci", "on"]
+    
+    # Enable USB 3.0 (xHCI) controller (requires Extension Pack)
+    vb.customize ["modifyvm", :id, "--usbxhci", "on"]
+    
+    # USB filters for YubiKey auto-passthrough
+    # Yubico vendor ID: 0x1050
+    
+    # YubiKey 5 Series
+    vb.customize ["usbfilter", "add", "0",
+      "--target", :id,
+      "--name", "YubiKey 5 NFC",
+      "--vendorid", "0x1050",
+      "--productid", "0x0407"]
+    
+    vb.customize ["usbfilter", "add", "1",
+      "--target", :id,
+      "--name", "YubiKey 5C",
+      "--vendorid", "0x1050",
+      "--productid", "0x0406"]
+    
+    vb.customize ["usbfilter", "add", "2",
+      "--target", :id,
+      "--name", "YubiKey 5C NFC",
+      "--vendorid", "0x1050",
+      "--productid", "0x0408"]
+    
+    vb.customize ["usbfilter", "add", "3",
+      "--target", :id,
+      "--name", "YubiKey 5 Nano",
+      "--vendorid", "0x1050",
+      "--productid", "0x0405"]
+    
+    # YubiKey Bio Series
+    vb.customize ["usbfilter", "add", "4",
+      "--target", :id,
+      "--name", "YubiKey Bio - FIDO Edition",
+      "--vendorid", "0x1050",
+      "--productid", "0x0402"]
+    
+    # Security Key Series
+    vb.customize ["usbfilter", "add", "5",
+      "--target", :id,
+      "--name", "Security Key C NFC",
+      "--vendorid", "0x1050",
+      "--productid", "0x0120"]
+    
+    vb.customize ["usbfilter", "add", "6",
+      "--target", :id,
+      "--name", "Security Key NFC",
+      "--vendorid", "0x1050",
+      "--productid", "0x0410"]
+    
+    # Catch-all for any Yubico device
+    vb.customize ["usbfilter", "add", "7",
+      "--target", :id,
+      "--name", "Yubico (All)",
+      "--vendorid", "0x1050"]
+    
+    # Performance optimizations
+    vb.customize ["modifyvm", :id, "--ioapic", "on"]
+    vb.customize ["modifyvm", :id, "--pae", "on"]
+    vb.customize ["modifyvm", :id, "--largepages", "on"]
+    vb.customize ["modifyvm", :id, "--vtxvpid", "on"]
+    vb.customize ["modifyvm", :id, "--hwvirtex", "on"]
+    vb.customize ["modifyvm", :id, "--nestedpaging", "on"]
+    
+    # Audio (disable if not needed)
+    vb.customize ["modifyvm", :id, "--audio", "none"]
+    
+    # Clipboard and drag-and-drop
+    vb.customize ["modifyvm", :id, "--clipboard-mode", "bidirectional"]
+    vb.customize ["modifyvm", :id, "--draganddrop", "bidirectional"]
+  end
+  
+  # Network configuration
+  # Private network for accessing the app from host
+  config.vm.network "private_network", ip: "192.168.56.10"
+  
+  # Port forwarding for web access
+  config.vm.network "forwarded_port", guest: 3000, host: 3000, host_ip: "127.0.0.1"
+  config.vm.network "forwarded_port", guest: 3306, host: 3306, host_ip: "127.0.0.1"
+  
+  # Synced folder configuration
+  config.vm.synced_folder ".", "/vagrant",
+    type: "virtualbox",
+    mount_options: ["dmode=775,fmode=664"]
+  
+  # Provisioning script
+  config.vm.provision "shell", path: "vagrant/provision.sh", privileged: false
+  
+  # Post-provisioning message
+  config.vm.post_up_message = <<-MESSAGE
+  ╔════════════════════════════════════════════════════════════════╗
+  ║                                                                ║
+  ║        BIFROSTVAULT DEVELOPMENT VM READY! (VirtualBox)         ║
+  ║                                                                ║
+  ╚════════════════════════════════════════════════════════════════╝
+  
+  VM is ready for Bifrostvault development with YubiKey support!
+  
+  Access the application:
+    - URL: http://localhost:3000 (from host)
+    - URL: http://192.168.56.10:3000 (from host)
+  
+  SSH into the VM:
+    vagrant ssh
+  
+  Inside the VM:
+    cd /vagrant
+    pnpm dev              # Start development server
+    pnpm test:e2e         # Run E2E tests
+    pnpm db:push          # Initialize database
+  
+  YubiKey Detection:
+    - Insert YubiKey into host machine
+    - VirtualBox will auto-connect it to VM
+    - Check with: lsusb | grep -i yubico
+    - If not auto-connected, use VirtualBox menu:
+      Devices → USB → Yubico YubiKey
+  
+  Useful commands:
+    vagrant halt          # Stop VM
+    vagrant up            # Start VM
+    vagrant reload        # Restart VM
+    vagrant destroy       # Delete VM
+  
+  IMPORTANT:
+    - Install VirtualBox Extension Pack for USB 2.0/3.0 support
+    - Download: https://www.virtualbox.org/wiki/Downloads
+  
+  For detailed documentation, see:
+    docs/developer/VAGRANT_TESTING.md
+  MESSAGE
+end
